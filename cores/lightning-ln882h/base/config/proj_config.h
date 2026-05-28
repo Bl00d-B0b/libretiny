@@ -52,6 +52,13 @@
 #define SOC_CRP_FLAG		  0
 
 /*
+ * BLE support.
+ * All LN882H variants have integrated BLE hardware.  Set to 0 to exclude the
+ * BLE SDK and save ~80 kB of flash (WiFi-only builds).
+ */
+#define CFG_SUPPORT_BLE 1
+
+/*
  * Hardware config
  */
 #define CFG_UART0_TX_BUF_SIZE 256
