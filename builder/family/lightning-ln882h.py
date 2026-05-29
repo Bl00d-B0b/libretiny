@@ -192,8 +192,12 @@ queue.AddLibrary(
 )
 
 # Sources - BLE SDK
-# Compiled when CFG_SUPPORT_BLE=1 (default for LN882H; set 0 in board JSON to
-# exclude the BLE stack and save ~80 kB of flash on WiFi-only builds).
+# Compiled when CFG_SUPPORT_BLE=1.  libln882h_ble_full_stack.a is built with
+# -ffunction-sections, so --gc-sections removes all BLE functions that are not
+# reachable from the application entry point.  The actual flash savings depend
+# on how much of the stack the application uses; a WiFi-only build with no BLE
+# application code will lose only ~5 KB (startup hooks), while a build using
+# ln882h_ble_tracker will retain all scanner/GAP/GATT code it calls.
 if env.Cfg("CFG_SUPPORT_BLE"):
     queue.AddLibrary(
         name="ln882h_ble",
