@@ -13,6 +13,14 @@ env.ConfigureFamily()
 
 # Load chip config (CFG_SUPPORT_BLE, etc.) — same pattern as beken-72xx.py
 env.LoadConfig(join("$FAMILY_DIR", "base", "config", "proj_config.h"))
+# Merge any user overrides from custom_options.proj_config into CONFIG so
+# env.Cfg() reflects them (ParseCustomOptions already ran in base.py).
+_proj_overrides = env.PioPlatform().custom_opts.get("options", {}).get("proj_config#h", {})
+if _proj_overrides:
+    env["CONFIG"].update(
+        {k: int(v) if str(v).lstrip("-").isdigit() else v.encode()
+         for k, v in _proj_overrides.items()}
+    )
 
 # Flags
 queue.AppendPublic(
