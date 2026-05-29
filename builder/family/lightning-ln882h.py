@@ -260,6 +260,12 @@ if env.Cfg("CFG_SUPPORT_BLE"):
             CFLAGS=["-w"],
         ),
     )
+    # Provide a default ble_app_user_cfg.h so the SDK compiles without an
+    # application-supplied header.  Application components (e.g. ln882h_ble_tracker)
+    # that prepend their own include path will shadow this default automatically.
+    queue.AppendPublic(
+        CPPPATH=[join("$FAMILY_DIR", "ble")],
+    )
     queue.AppendPublic(
         CPPDEFINES=["CFG_SUPPORT_BLE=1"],
         LINKFLAGS=[
