@@ -217,6 +217,8 @@ if env.Cfg("CFG_SUPPORT_BLE"):
             "+<ble_app/ble_import/ln_ble_rw_app_task.c>",
         ],
         includes=[
+            # base_dir itself so that #include "ble_arch/arch.h" resolves correctly
+            "+<.>",
             "+<ble_arch>",
             "+<ble_lib_import>",
             "+<ble_profiles/prf_common>",
