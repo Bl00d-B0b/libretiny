@@ -15,6 +15,11 @@ extern int ln_generate_random_mac(uint8_t *addr);
 extern uint8_t hal_flash_read(uint32_t offset, uint32_t length, uint8_t *buffer);
 #endif
 
+// Factory-default STA MAC written by Tuya on every LN882H device — used as
+// a sentinel to detect "no unique MAC assigned yet" in both the KV scanner
+// and the init function.
+static const uint8_t WIFI_MAC_FACTORY_DEFAULT[6] = {0x00, 0x50, 0xC2, 0x5E, 0x10, 0x88};
+
 extern uint8_t uart_print_port;
 extern Serial_t m_LogSerial;
 
@@ -42,7 +47,6 @@ static void lt_init_log(void) {
 static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 	static const uint8_t IT_MAGIC[8]	= "it_magic";
 	static const uint8_t STA_MAC_KEY[9] = "6_sta_mac";
-	static const uint8_t SENTINEL[6]	= {0x00, 0x50, 0xC2, 0x5E, 0x10, 0x88};
 
 	// Tuya KV offset and size from board JSON
 	// (generated as FLASH_TUYA_KV_OFFSET / FLASH_TUYA_KV_LENGTH by the board generator)
@@ -69,7 +73,7 @@ static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 			goto next;
 
 		// entry[25..30] = 6-byte MAC value
-		if (memcmp(entry + 25, SENTINEL, 6) == 0)
+		if (memcmp(entry + 25, WIFI_MAC_FACTORY_DEFAULT, 6) == 0)
 			goto next;
 		{
 			bool all_ff = true;
@@ -105,12 +109,12 @@ static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 // sysparam KV at 0x1E0000 is outside the OTA partition and is never erased by
 // OTA, so the resolved MAC is stable across all future LibreTiny OTA updates.
 static void lt_init_unique_mac(void) {
-	static const uint8_t factory_mac[6] = {0x00, 0x50, 0xC2, 0x5E, 0x10, 0x88};
+	// WIFI_MAC_FACTORY_DEFAULT defined at file scope — shared with lt_tuya_kv_read_sta_mac
 	uint8_t mac[6];
 
 	if (SYSPARAM_ERR_NONE != sysparam_sta_mac_get(mac))
 		return;
-	if (memcmp(mac, factory_mac, 6) != 0)
+	if (memcmp(mac, WIFI_MAC_FACTORY_DEFAULT, 6) != 0)
 		return; // step 1: already unique, nothing to do
 
 #ifdef FLASH_TUYA_KV_OFFSET
