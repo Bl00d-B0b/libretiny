@@ -116,8 +116,15 @@ static void lt_init_unique_mac(void) {
 #ifdef FLASH_TUYA_KV_OFFSET
 	// Step 2 (Tuya boards): try to recover factory MAC from BLK_V1.0 KV
 	if (lt_tuya_kv_read_sta_mac(mac)) {
-		LT_I("Restored Tuya factory MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4],
-			 mac[5]);
+		LT_I(
+			"Restored Tuya factory MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+			mac[0],
+			mac[1],
+			mac[2],
+			mac[3],
+			mac[4],
+			mac[5]
+		);
 		sysparam_sta_mac_update(mac);
 		mac[0] |= 0x02; // locally-administered bit → distinct SoftAP MAC
 		sysparam_softap_mac_update(mac);
