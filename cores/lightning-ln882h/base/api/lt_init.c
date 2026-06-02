@@ -28,13 +28,13 @@ static void lt_init_log(void) {
 
 #ifdef FLASH_TUYA_KV_OFFSET
 static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
-	static const uint8_t IT_MAGIC[8]    = "it_magic";
+	static const uint8_t IT_MAGIC[8]	= "it_magic";
 	static const uint8_t STA_MAC_KEY[9] = "6_sta_mac";
 
 	const uint32_t kv_base = FLASH_TUYA_KV_OFFSET;
 	const uint32_t kv_size = FLASH_TUYA_KV_LENGTH;
-	uint8_t  entry[31];
-	bool     found = false;
+	uint8_t entry[31];
+	bool found = false;
 	uint32_t off;
 
 	for (off = 0; off + sizeof(entry) <= kv_size; off++) {
@@ -76,8 +76,15 @@ static void lt_init_unique_mac(void) {
 		return; // step 1: already unique
 #ifdef FLASH_TUYA_KV_OFFSET
 	if (lt_tuya_kv_read_sta_mac(mac)) {
-		LT_I("Restored Tuya factory MAC: %02X:%02X:%02X:%02X:%02X:%02X",
-			mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+		LT_I(
+			"Restored Tuya factory MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+			mac[0],
+			mac[1],
+			mac[2],
+			mac[3],
+			mac[4],
+			mac[5]
+		);
 		sysparam_sta_mac_update(mac);
 		mac[0] |= 0x02; // locally-administered bit
 		sysparam_softap_mac_update(mac);
@@ -86,8 +93,7 @@ static void lt_init_unique_mac(void) {
 #endif // FLASH_TUYA_KV_OFFSET
 	if (ln_generate_random_mac(mac) != 0)
 		return;
-	LT_I("Generated random unique MAC: %02X:%02X:%02X:%02X:%02X:%02X",
-		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+	LT_I("Generated random unique MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 	sysparam_sta_mac_update(mac);
 	mac[0] |= 0x02;
 	sysparam_softap_mac_update(mac);
@@ -123,7 +129,6 @@ void lt_init_family() {
 	sysparam_integrity_check_all();
 	// randomize MAC if still at factory default (first boot after flash)
 	lt_init_unique_mac();
-
 
 	ln_pm_sleep_mode_set(ACTIVE);
 	// ln_pm_always_clk_disable_select(CLK_G_I2S | CLK_G_WS2811 | CLK_G_SDIO);
