@@ -7,10 +7,13 @@
 // Not thread-safe — safe here since lt_init_family() runs before the RTOS scheduler.
 extern int ln_generate_random_mac(uint8_t *addr);
 
-// Declared in mcu/driver_ln882h/hal/hal_flash.h; compiled in framework-lightning-ln882h.
-// Forward-declared to avoid the hexdump/ln_hexdump macro conflict triggered by
-// hal_flash.h -> hal_common.h -> proj_config.h.
+// hal_flash_read: declared in mcu/driver_ln882h/hal/hal_flash.h; compiled in
+// framework-lightning-ln882h.  Forward-declared to avoid the hexdump/ln_hexdump
+// macro conflict triggered by hal_flash.h -> hal_common.h -> proj_config.h.
+// Only needed when FLASH_TUYA_KV_OFFSET is defined (Tuya board variant).
+#ifdef FLASH_TUYA_KV_OFFSET
 extern uint8_t hal_flash_read(uint32_t offset, uint32_t length, uint8_t *buffer);
+#endif
 
 extern uint8_t uart_print_port;
 extern Serial_t m_LogSerial;
@@ -23,13 +26,8 @@ static void lt_init_log(void) {
 }
 
 // Scan the Tuya BLK_V1.0 KV store for the last valid "6_sta_mac" entry.
-//
-// Background: Tuya assigns every LN882H a unique MAC at the factory and writes
-// it to a BLK_V1.0 append-log KV store at flash offset 0x1C5000 (4 blocks x 4 KB).
-// This region lies within LibreTiny's OTA partition (0x133000–0x1DD000), but OTA
-// writes only the firmware image bytes (~530 KB, ending at ~0x1B4700) so 0x1C5000
-// is never touched unless the firmware grows beyond 592 KB.  UART full-flash also
-// only covers 0x000000–0x088000 and therefore likewise preserves the Tuya KV.
+// Only compiled on Tuya board variants that define FLASH_TUYA_KV_OFFSET in
+// their board JSON (e.g. boards/_base/lightning-ln882hki-tuya.json).
 //
 // BLK_V1.0 entry layout (no null terminator between key and value):
 //   it_magic[8] | crc16[2] | val_size_u16_le[2] | prev_ptr_u32_le[4] | key[N] | value[val_size]
@@ -40,15 +38,16 @@ static void lt_init_log(void) {
 // so the last matching entry wins — we return that.
 //
 // Returns true and fills mac_out[6] if a valid non-sentinel MAC is found.
+#ifdef FLASH_TUYA_KV_OFFSET
 static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 	static const uint8_t IT_MAGIC[8]	= "it_magic";
 	static const uint8_t STA_MAC_KEY[9] = "6_sta_mac";
 	static const uint8_t SENTINEL[6]	= {0x00, 0x50, 0xC2, 0x5E, 0x10, 0x88};
 
-	// Tuya KV: 4 blocks x 4 KB starting at FLASH_OTA_OFFSET + 0x92000
-	// (= 0x1C5000 on the standard lightning-ln882hki partition layout)
-	const uint32_t kv_base = FLASH_OTA_OFFSET + 0x92000UL;
-	const uint32_t kv_size = 0x4000UL;
+	// Tuya KV offset and size from board JSON
+	// (defined as FLASH_TUYA_KV_OFFSET / FLASH_TUYA_KV_LENGTH by the board generator)
+	const uint32_t kv_base = FLASH_TUYA_KV_OFFSET;
+	const uint32_t kv_size = FLASH_TUYA_KV_LENGTH;
 
 	// Entry buffer: it_magic(8) + header(8) + key(9) + value(6) = 31 bytes
 	uint8_t entry[31];
@@ -89,15 +88,17 @@ static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 	}
 	return found;
 }
+#endif  // FLASH_TUYA_KV_OFFSET
 
 // Ensure the stored STA/SoftAP MACs are unique on first boot after flash.
 //
 // Priority:
 //   1. LibreTiny sysparam KV already holds a non-sentinel MAC → nothing to do.
 //      (fast path on every boot after first; also covers LibreTiny→LibreTiny OTA)
-//   2. Tuya BLK_V1.0 KV at 0x1C5000 has a valid unique MAC → restore it.
+//   2. [Tuya boards only] BLK_V1.0 KV at FLASH_TUYA_KV_OFFSET has a valid
+//      unique MAC → restore it.
 //      (first boot after UART flash or Kickstart/cloudcutter OTA from Tuya stock)
-//   3. Tuya KV empty / erased (e.g. UART flash with full-chip erase) → TRNG.
+//   3. TRNG fallback — Tuya KV absent/erased, or non-Tuya board.
 //
 // sysparam KV at 0x1E0000 is outside the OTA partition and is never erased by
 // OTA, so the resolved MAC is stable across all future LibreTiny OTA updates.
@@ -110,7 +111,8 @@ static void lt_init_unique_mac(void) {
 	if (memcmp(mac, factory_mac, 6) != 0)
 		return; // step 1: already unique, nothing to do
 
-	// Step 2: try to recover Tuya-assigned factory MAC from BLK_V1.0 KV
+#ifdef FLASH_TUYA_KV_OFFSET
+	// Step 2 (Tuya boards): try to recover factory MAC from BLK_V1.0 KV
 	if (lt_tuya_kv_read_sta_mac(mac)) {
 		LT_I(
 			"Restored Tuya factory MAC: %02X:%02X:%02X:%02X:%02X:%02X",
@@ -126,8 +128,9 @@ static void lt_init_unique_mac(void) {
 		sysparam_softap_mac_update(mac);
 		return;
 	}
+#endif  // FLASH_TUYA_KV_OFFSET
 
-	// Step 3: Tuya KV unavailable — generate via hardware TRNG
+	// Step 3: TRNG — non-Tuya board, or Tuya KV absent/erased
 	if (ln_generate_random_mac(mac) != 0)
 		return;
 	LT_I("Generated random unique MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -182,3 +185,4 @@ void lt_init_arduino() {
 	Serial0.begin(115200);
 #endif
 }
+

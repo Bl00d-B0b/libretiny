@@ -1,0 +1,10 @@
+{
+	"flash": {
+		"tuya_kv": "0x1C5000+0x4000"
+	},
+	"doc": {
+		"params": {
+			"layout": "**Tuya default** for LN882HKI (Tuya KV 0x1C5000, 4 × 4 KB)"
+		}
+	}
+}
