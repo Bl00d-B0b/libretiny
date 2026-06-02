@@ -37,25 +37,23 @@ static void lt_init_log(void) {
 // BLK_V1.0 entry layout (no null terminator between key and value):
 //   it_magic[8] | crc16[2] | val_size_u16_le[2] | prev_ptr_u32_le[4] | key[N] | value[val_size]
 //
-// The factory sentinel "6_sta_mac" #1 is always 00:50:C2:5E:10:88 (from
-// sysparam_factory_setting.h).  The real unique MAC is written as a second
+// The factory sentinel "6_sta_mac" #1 is always 00:50:C2:5E:10:88 — stored in
+// WIFI_MAC_FACTORY_DEFAULT above.  The real unique MAC is written as a second
 // "6_sta_mac" entry during Tuya manufacturing.  BLK_V1.0 is an append-only log,
 // so the last matching entry wins — we return that.
 //
 // Returns true and fills mac_out[6] if a valid non-sentinel MAC is found.
 #ifdef FLASH_TUYA_KV_OFFSET
 static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
-	static const uint8_t IT_MAGIC[8]	= "it_magic";
+	static const uint8_t IT_MAGIC[8]    = "it_magic";
 	static const uint8_t STA_MAC_KEY[9] = "6_sta_mac";
 
-	// Tuya KV offset and size from board JSON
-	// (generated as FLASH_TUYA_KV_OFFSET / FLASH_TUYA_KV_LENGTH by the board generator)
 	const uint32_t kv_base = FLASH_TUYA_KV_OFFSET;
 	const uint32_t kv_size = FLASH_TUYA_KV_LENGTH;
 
 	// Entry buffer: it_magic(8) + header(8) + key(9) + value(6) = 31 bytes
-	uint8_t entry[31];
-	bool found = false;
+	uint8_t  entry[31];
+	bool     found = false;
 	uint32_t off;
 
 	for (off = 0; off + sizeof(entry) <= kv_size; off++) {
@@ -63,7 +61,6 @@ static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 		if (memcmp(entry, IT_MAGIC, 8) != 0)
 			continue;
 
-		// Read header + key + value
 		hal_flash_read(kv_base + off + 8, 23, entry + 8);
 
 		uint16_t val_size = entry[10] | ((uint16_t)entry[11] << 8);
@@ -72,7 +69,7 @@ static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 		if (memcmp(entry + 16, STA_MAC_KEY, 9) != 0)
 			goto next;
 
-		// entry[25..30] = 6-byte MAC value
+		// entry[25..30] = 6-byte MAC value — skip sentinel and all-FF
 		if (memcmp(entry + 25, WIFI_MAC_FACTORY_DEFAULT, 6) == 0)
 			goto next;
 		{
@@ -99,35 +96,22 @@ static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 // Ensure the stored STA/SoftAP MACs are unique on first boot after flash.
 //
 // Priority:
-//   1. LibreTiny sysparam KV already holds a non-sentinel MAC → nothing to do.
-//      (fast path on every boot after first; also covers LibreTiny→LibreTiny OTA)
-//   2. [Tuya boards only] BLK_V1.0 KV at FLASH_TUYA_KV_OFFSET has a valid
-//      unique MAC → restore it.
-//      (first boot after UART flash or Kickstart/cloudcutter OTA from Tuya stock)
+//   1. sysparam KV already holds a non-sentinel MAC → nothing to do (fast path).
+//   2. [Tuya boards] BLK_V1.0 KV at FLASH_TUYA_KV_OFFSET has a valid unique MAC → restore.
 //   3. TRNG fallback — Tuya KV absent/erased, or non-Tuya board.
-//
-// sysparam KV at 0x1E0000 is outside the OTA partition and is never erased by
-// OTA, so the resolved MAC is stable across all future LibreTiny OTA updates.
 static void lt_init_unique_mac(void) {
-	// WIFI_MAC_FACTORY_DEFAULT defined at file scope — shared with lt_tuya_kv_read_sta_mac
 	uint8_t mac[6];
 
 	if (SYSPARAM_ERR_NONE != sysparam_sta_mac_get(mac))
 		return;
 	if (memcmp(mac, WIFI_MAC_FACTORY_DEFAULT, 6) != 0)
-		return; // step 1: already unique, nothing to do
+		return; // step 1: already unique
 
 #ifdef FLASH_TUYA_KV_OFFSET
-	// Step 2 (Tuya boards): try to recover factory MAC from BLK_V1.0 KV
 	if (lt_tuya_kv_read_sta_mac(mac)) {
 		LT_I(
 			"Restored Tuya factory MAC: %02X:%02X:%02X:%02X:%02X:%02X",
-			mac[0],
-			mac[1],
-			mac[2],
-			mac[3],
-			mac[4],
-			mac[5]
+			mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
 		);
 		sysparam_sta_mac_update(mac);
 		mac[0] |= 0x02; // locally-administered bit → distinct SoftAP MAC
@@ -136,10 +120,12 @@ static void lt_init_unique_mac(void) {
 	}
 #endif // FLASH_TUYA_KV_OFFSET
 
-	// Step 3: TRNG — non-Tuya board, or Tuya KV absent/erased
 	if (ln_generate_random_mac(mac) != 0)
 		return;
-	LT_I("Generated random unique MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+	LT_I(
+		"Generated random unique MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
+	);
 	sysparam_sta_mac_update(mac);
 	mac[0] |= 0x02;
 	sysparam_softap_mac_update(mac);
@@ -181,7 +167,7 @@ void lt_init_family() {
 	// ln_pm_always_clk_disable_select(CLK_G_I2S | CLK_G_WS2811 | CLK_G_SDIO);
 	/*ln_pm_always_clk_disable_select(CLK_G_I2S | CLK_G_WS2811 | CLK_G_SDIO | CLK_G_AES);
 	ln_pm_lightsleep_clk_disable_select(CLK_G_GPIOA | CLK_G_GPIOB | CLK_G_SPI0 | CLK_G_SPI1 | CLK_G_I2C0 |
-					  CLK_G_UART1 | CLK_G_UART2 | CLK_G_WDT | CLK_G_TIM1 | CLK_G_TIM2 | CLK_G_MAC |
+									CLK_G_UART1 | CLK_G_UART2 | CLK_G_WDT | CLK_G_TIM1 | CLK_G_TIM2 | CLK_G_MAC |
 	CLK_G_DMA | CLK_G_RF | CLK_G_ADV_TIMER| CLK_G_TRNG);*/
 }
 
