@@ -45,7 +45,7 @@ static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 	static const uint8_t SENTINEL[6]	= {0x00, 0x50, 0xC2, 0x5E, 0x10, 0x88};
 
 	// Tuya KV offset and size from board JSON
-	// (defined as FLASH_TUYA_KV_OFFSET / FLASH_TUYA_KV_LENGTH by the board generator)
+	// (generated as FLASH_TUYA_KV_OFFSET / FLASH_TUYA_KV_LENGTH by the board generator)
 	const uint32_t kv_base = FLASH_TUYA_KV_OFFSET;
 	const uint32_t kv_size = FLASH_TUYA_KV_LENGTH;
 
@@ -71,14 +71,16 @@ static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 		// entry[25..30] = 6-byte MAC value
 		if (memcmp(entry + 25, SENTINEL, 6) == 0)
 			goto next;
-		bool all_ff = true;
-		for (int i = 0; i < 6; i++)
-			if (entry[25 + i] != 0xFF) {
-				all_ff = false;
-				break;
-			}
-		if (all_ff)
-			goto next;
+		{
+			bool all_ff = true;
+			for (int i = 0; i < 6; i++)
+				if (entry[25 + i] != 0xFF) {
+					all_ff = false;
+					break;
+				}
+			if (all_ff)
+				goto next;
+		}
 
 		memcpy(mac_out, entry + 25, 6);
 		found = true; // keep scanning -- last entry wins in BLK_V1.0 log
@@ -88,7 +90,7 @@ static bool lt_tuya_kv_read_sta_mac(uint8_t *mac_out) {
 	}
 	return found;
 }
-#endif  // FLASH_TUYA_KV_OFFSET
+#endif // FLASH_TUYA_KV_OFFSET
 
 // Ensure the stored STA/SoftAP MACs are unique on first boot after flash.
 //
@@ -114,21 +116,14 @@ static void lt_init_unique_mac(void) {
 #ifdef FLASH_TUYA_KV_OFFSET
 	// Step 2 (Tuya boards): try to recover factory MAC from BLK_V1.0 KV
 	if (lt_tuya_kv_read_sta_mac(mac)) {
-		LT_I(
-			"Restored Tuya factory MAC: %02X:%02X:%02X:%02X:%02X:%02X",
-			mac[0],
-			mac[1],
-			mac[2],
-			mac[3],
-			mac[4],
-			mac[5]
-		);
+		LT_I("Restored Tuya factory MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4],
+			 mac[5]);
 		sysparam_sta_mac_update(mac);
 		mac[0] |= 0x02; // locally-administered bit → distinct SoftAP MAC
 		sysparam_softap_mac_update(mac);
 		return;
 	}
-#endif  // FLASH_TUYA_KV_OFFSET
+#endif // FLASH_TUYA_KV_OFFSET
 
 	// Step 3: TRNG — non-Tuya board, or Tuya KV absent/erased
 	if (ln_generate_random_mac(mac) != 0)
@@ -175,7 +170,7 @@ void lt_init_family() {
 	// ln_pm_always_clk_disable_select(CLK_G_I2S | CLK_G_WS2811 | CLK_G_SDIO);
 	/*ln_pm_always_clk_disable_select(CLK_G_I2S | CLK_G_WS2811 | CLK_G_SDIO | CLK_G_AES);
 	ln_pm_lightsleep_clk_disable_select(CLK_G_GPIOA | CLK_G_GPIOB | CLK_G_SPI0 | CLK_G_SPI1 | CLK_G_I2C0 |
-									CLK_G_UART1 | CLK_G_UART2 | CLK_G_WDT | CLK_G_TIM1 | CLK_G_TIM2 | CLK_G_MAC |
+					  CLK_G_UART1 | CLK_G_UART2 | CLK_G_WDT | CLK_G_TIM1 | CLK_G_TIM2 | CLK_G_MAC |
 	CLK_G_DMA | CLK_G_RF | CLK_G_ADV_TIMER| CLK_G_TRNG);*/
 }
 
@@ -185,4 +180,3 @@ void lt_init_arduino() {
 	Serial0.begin(115200);
 #endif
 }
-
