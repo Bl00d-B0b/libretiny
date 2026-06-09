@@ -12,7 +12,7 @@
 
 #include "lt_ble.h"
 
-void ln882h_ble_mac_get(uint8_t out[6]) {
+void ln_ble_mac_get(uint8_t out[6]) {
 	if (sysparam_sta_mac_get(out) != SYSPARAM_ERR_NONE)
 		return;
 	uint32_t nic = ((((uint32_t)out[3] << 16) | ((uint32_t)out[4] << 8) | out[5]) + 1) & 0xFFFFFF;
