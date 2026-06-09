@@ -16,7 +16,7 @@ void ln_ble_mac_get(uint8_t out[6]) {
 	if (sysparam_sta_mac_get(out) != SYSPARAM_ERR_NONE)
 		return;
 	uint32_t nic = ((((uint32_t)out[3] << 16) | ((uint32_t)out[4] << 8) | out[5]) + 1) & 0xFFFFFF;
-	out[3] = (uint8_t)(nic >> 16);
-	out[4] = (uint8_t)(nic >> 8);
-	out[5] = (uint8_t)(nic >> 0);
+	out[3]		 = (uint8_t)(nic >> 16);
+	out[4]		 = (uint8_t)(nic >> 8);
+	out[5]		 = (uint8_t)(nic >> 0);
 }
