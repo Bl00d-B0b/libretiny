@@ -1,7 +1,6 @@
 {
 	"_base": [
-		"lightning-ln882x",
-		"lightning-ln882hki",
+		"lightning-ln882h",
 		"ic/ln882hk",
 		"pcb/ln-02",
 		"pcb/ln-02-test"
