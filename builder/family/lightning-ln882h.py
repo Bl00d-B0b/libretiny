@@ -11,20 +11,8 @@ board: PlatformBoardConfig = env.BoardConfig()
 queue = env.AddLibraryQueue("lightning-ln882h")
 env.ConfigureFamily()
 
-# Load chip config (CFG_SUPPORT_BLE, etc.) — same pattern as beken-72xx.py
+# Load proj_config.h into env
 env.LoadConfig(join("$FAMILY_DIR", "base", "config", "proj_config.h"))
-# Merge any user overrides from custom_options.proj_config into CONFIG so
-# env.Cfg() reflects them (ParseCustomOptions already ran in base.py).
-_proj_overrides = (
-    env.PioPlatform().custom_opts.get("options", {}).get("proj_config#h", {})
-)
-if _proj_overrides:
-    env["CONFIG"].update(
-        {
-            k: int(v) if str(v).lstrip("-").isdigit() else v.encode()
-            for k, v in _proj_overrides.items()
-        }
-    )
 
 # Flags
 queue.AppendPublic(
@@ -197,12 +185,7 @@ queue.AddLibrary(
 )
 
 # Sources - BLE SDK
-# Compiled when CFG_SUPPORT_BLE=1.  libln882h_ble_full_stack.a is built with
-# -ffunction-sections, so --gc-sections removes all BLE functions that are not
-# reachable from the application entry point.  A WiFi-only build with no BLE
-# application code adds only ~5 KB (startup hooks); a build with active BLE
-# usage retains all scanner/GAP/GATT code it calls.
-if env.Cfg("CFG_SUPPORT_BLE"):
+if env.Cfg("CFG_SUPPORT_BLE", "proj_config.h"):
     queue.AddLibrary(
         name="ln882h_ble",
         base_dir=join("$SDK_DIR", "components", "ble"),
@@ -269,12 +252,6 @@ if env.Cfg("CFG_SUPPORT_BLE"):
             CPPDEFINES=["LN882H_SDK", "CFG_SUPPORT_BLE=1"],
             CFLAGS=["-w"],
         ),
-    )
-    # Provide a default ble_app_user_cfg.h so the SDK compiles without an
-    # application-supplied header.  Application components (e.g. ln882h_ble_tracker)
-    # that prepend their own include path will shadow this default automatically.
-    queue.AppendPublic(
-        CPPPATH=[join("$FAMILY_DIR", "ble")],
     )
     queue.AppendPublic(
         CPPDEFINES=["CFG_SUPPORT_BLE=1"],
