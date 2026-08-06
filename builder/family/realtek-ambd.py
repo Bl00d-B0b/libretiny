@@ -56,4 +56,4 @@ queue.AddLibrary(
     includes=[],
 )
 
-env.BuildLibraries()
+queue.BuildLibraries()
