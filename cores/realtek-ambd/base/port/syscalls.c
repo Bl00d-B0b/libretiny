@@ -23,3 +23,44 @@ int _kill(pid_t pid, int sig) {
 pid_t _getpid(void) {
 	return 1;
 }
+
+// Minimal newlib file-IO stubs: the SDK has no filesystem behind stdio, but
+// printf's fallback path and abort() reference these.
+int _close(int fd) {
+	(void)fd;
+	return -1;
+}
+
+int _fstat(int fd, void *st) {
+	(void)fd;
+	(void)st;
+	return -1;
+}
+
+int _isatty(int fd) {
+	(void)fd;
+	return 1;
+}
+
+int _lseek(int fd, int off, int whence) {
+	(void)fd;
+	(void)off;
+	(void)whence;
+	return -1;
+}
+
+int _read(int fd, char *buf, int len) {
+	(void)fd;
+	(void)buf;
+	(void)len;
+	return -1;
+}
+
+int _write(int fd, const char *buf, int len) {
+	extern void putchar_p(char c, unsigned long port);
+	extern unsigned char lt_uart_port;
+	(void)fd;
+	for (int i = 0; i < len; i++)
+		putchar_p(buf[i], lt_uart_port);
+	return len;
+}

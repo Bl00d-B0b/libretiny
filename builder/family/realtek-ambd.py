@@ -74,6 +74,10 @@ queue.AppendPublic(
         join(COMPONENT_DIR, "common", "api"),
         join(COMPONENT_DIR, "common", "api", "wifi"),
         join(COMPONENT_DIR, "common", "api", "network", "include"),
+        join(COMPONENT_DIR, "common", "api", "wifi", "rtw_wpa_supplicant", "src"),
+        join(COMPONENT_DIR, "common", "api", "wifi", "rtw_wpa_supplicant", "wpa_supplicant"),
+        join(COMPONENT_DIR, "common", "api", "wifi", "rtw_wpa_supplicant", "src", "utils"),
+        join(COMPONENT_DIR, "common", "drivers", "wlan", "realtek", "wlan_ram_map", "rom"),
         # rtl8721d_ota.h includes mbedtls/version.h; 2.4.0 is the SDK default
         # (sources join the build later with the SSL/OTA feature work).
         join(COMPONENT_DIR, "common", "network", "ssl", "mbedtls-2.4.0", "include"),
@@ -130,6 +134,21 @@ queue.AddLibrary(
         "+<os/freertos/freertos_service.c>",
         "+<os/freertos/freertos_backtrace_ext.c>",
         "+<common/mbed/targets/hal/rtl8721d/*.c>",
+        # WiFi API + wlan driver OS glue (wext_wlan_indicate, promisc,
+        # rltk_wlan_set_netif_info, lwip_intf) and the DHCP server
+        "+<common/api/wifi/wifi_conf.c>",
+        "+<common/api/wifi/wifi_ind.c>",
+        "+<common/api/wifi/wifi_promisc.c>",
+        "+<common/api/wifi/wifi_util.c>",
+        "+<common/api/wifi/rtw_wpa_supplicant/wpa_supplicant/wifi_eap_config.c>",
+        "+<common/api/wifi/rtw_wpa_supplicant/wpa_supplicant/wifi_p2p_config.c>",
+        "+<common/api/wifi/rtw_wpa_supplicant/wpa_supplicant/wifi_wps_config.c>",
+        "+<common/api/lwip_netconf.c>",
+        "+<common/drivers/wlan/realtek/src/osdep/lwip_intf.c>",
+        "+<common/network/dhcp/dhcps.c>",
+        "+<common/network/ssl/ssl_ram_map/ssl_ram_map.c>",
+        # wifi_conf.c installs mbedTLS allocators through this
+        "+<common/network/ssl/mbedtls-2.4.0/library/platform.c>",
     ],
     includes=[],
     options=dict(CFLAGS=["-w"]),
@@ -143,6 +162,22 @@ queue.AddLibrary(
     srcs=["+<os/freertos/freertos_heap5_config.c>"],
     includes=[],
     options=dict(CFLAGS=["-w", "-include", "ameba_soc.h"]),
+)
+
+# SDK-bundled lwIP 2.0.2 with the Realtek port (netif_rx and friends).
+queue.AddLibrary(
+    name="ambd_lwip",
+    base_dir=LWIP_DIR,
+    srcs=[
+        "+<src/api/*.c>",
+        "+<src/core/*.c>",
+        "+<src/core/ipv4/*.c>",
+        "+<src/netif/ethernet.c>",
+        "+<port/realtek/freertos/*.c>",
+        "+<port/realtek/*.c>",
+    ],
+    includes=[],
+    options=dict(CFLAGS=["-w"]),
 )
 
 # Prebuilt SDK archives (power management now; wlan/BT join with their features)

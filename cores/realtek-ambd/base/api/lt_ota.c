@@ -84,9 +84,11 @@ bool lt_ota_is_valid(uint8_t index) {
 }
 
 uint8_t lt_ota_dual_get_current() {
-	// KM4 image2 is XIP: the running code's flash offset tells the slot apart.
-	uint32_t offs = ((uint32_t)lt_ota_dual_get_current) - SPI_FLASH_BASE;
-	return offs > FLASH_OTA2_OFFSET ? 2 : 1;
+	// KM4 image2 runs from the 0x0E000000 XIP window, which the bootloader
+	// maps onto the active slot — the code address carries no flash offset.
+	// The bootloader picks OTA2 whenever its signature is valid, so the slot
+	// that booted is the same one lt_ota_is_valid() reports for OTA2.
+	return lt_ota_is_valid(2) ? 2 : 1;
 }
 
 uint8_t lt_ota_dual_get_stored() {
