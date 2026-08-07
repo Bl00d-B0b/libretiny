@@ -15,7 +15,7 @@ void lt_init_family() {
 #endif
 	// route LibreTiny's printf port to the family default (LOGUART on AmebaD)
 	lt_uart_port = LT_UART_DEFAULT_PORT;
-	// silence the SDK's own DBG_8195A chatter (diag.h globals)
-	ConfigDebugClose  = 1;
-	ConfigDebugBuffer = 0;
+	// NOTE: ConfigDebugClose shuts the LOGUART down entirely (verified on
+	// hardware: all output stops, including LibreTiny's), so SDK verbosity is
+	// left alone here.
 }
