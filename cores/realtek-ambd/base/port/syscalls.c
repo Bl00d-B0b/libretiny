@@ -4,6 +4,11 @@
 
 #include <sys/types.h>
 
+// Normally from crtbegin, which -nostartfiles drops; referenced by
+// __cxa_atexit() for C++ static objects. Nothing runs destructors on a
+// firmware image, so the address only has to be unique.
+void *__dso_handle = 0;
+
 void _exit(int status) {
 	(void)status;
 	while (1) {}

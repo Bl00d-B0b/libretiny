@@ -145,7 +145,7 @@ queue.AddLibrary(
 # Prebuilt SDK archives (power management now; wlan/BT join with their features)
 env.Append(
     LIBPATH=[join("$SDK_DIR", "project", "OpenBeken", "GCC-RELEASE", "project_hp", "asdk", "lib", "application")],
-    LIBS=["_pmc_hp"],
+    LIBS=["_pmc_hp", "_wlan", "_websocket", "_wps"],
 )
 
 # FreeRTOS from the SDK (vendor port + heap_5, per the KM4 project makefile).

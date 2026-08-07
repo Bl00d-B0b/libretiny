@@ -7,8 +7,13 @@
 // 8-byte image signature "81958711"; the bootloader boots OTA2 when its
 // signature is valid, OTA1 otherwise. Switching = writing the signature to the
 // target slot head and blanking the other. No system-data bit flag exists.
+#define IMG2_SIGN		"81958711"
 #define AMBD_OTA_SIGN_0 0x35393138 // "8195"
 #define AMBD_OTA_SIGN_1 0x31313738 // "8711"
+
+lt_ota_type_t lt_ota_get_type() {
+	return OTA_TYPE_DUAL;
+}
 
 /**
  * Convert OTA index (1, 2) into partition offset.
@@ -66,4 +71,34 @@ bool lt_ota_dual_switch_flag() {
 	FLASH_EreaseDwordsXIP(tgt, 2);
 	FLASH_TxData12BXIP(tgt, 8, (u8 *)sig);
 	return lt_ota_dual_get_stored_by_flag() != (cur == FLASH_OTA1_OFFSET ? 1 : 2);
+}
+
+bool lt_ota_is_valid(uint8_t index) {
+	uint32_t offset;
+	if (!lt_ota_dual_get_offset(index, &offset))
+		return false;
+	uint8_t head[8];
+	if (lt_flash_read(offset, head, sizeof(head)) != sizeof(head))
+		return false;
+	return memcmp(head, IMG2_SIGN, 8) == 0;
+}
+
+uint8_t lt_ota_dual_get_current() {
+	// KM4 image2 is XIP: the running code's flash offset tells the slot apart.
+	uint32_t offs = ((uint32_t)lt_ota_dual_get_current) - SPI_FLASH_BASE;
+	return offs > FLASH_OTA2_OFFSET ? 2 : 1;
+}
+
+uint8_t lt_ota_dual_get_stored() {
+	return lt_ota_dual_get_stored_by_flag();
+}
+
+bool lt_ota_switch(bool revert) {
+	uint8_t current = lt_ota_dual_get_current();
+	uint8_t stored	= lt_ota_dual_get_stored();
+	if ((current == stored) == revert)
+		return true;
+	if (!lt_ota_is_valid(stored ^ 0b11))
+		return false;
+	return lt_ota_dual_switch_flag();
 }
