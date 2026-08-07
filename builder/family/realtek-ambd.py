@@ -184,6 +184,8 @@ queue.AddLibrary(
         "+<src/core/*.c>",
         "+<src/core/ipv4/*.c>",
         "+<src/netif/ethernet.c>",
+        # SNTP client (ESPHome's sntp component links against it)
+        "+<src/apps/sntp/sntp.c>",
         "+<port/realtek/freertos/*.c>",
         "+<port/realtek/*.c>",
     ],

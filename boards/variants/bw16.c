@@ -37,6 +37,23 @@ PinInfo lt_arduino_pin_info_list[PINS_COUNT] = {
 };
 // clang-format on
 
+// Maps a GPIO number to its PinInfo; indices not listed stay NULL.
+PinInfo *lt_arduino_pin_gpio_map[PINS_GPIO_MAX + 1] = {
+	[7] = &(lt_arduino_pin_info_list[0]), // D0
+	[8] = &(lt_arduino_pin_info_list[1]), // D1
+	[9] = &(lt_arduino_pin_info_list[2]), // D2
+	[12] = &(lt_arduino_pin_info_list[3]), // D3
+	[13] = &(lt_arduino_pin_info_list[4]), // D4
+	[14] = &(lt_arduino_pin_info_list[5]), // D5
+	[25] = &(lt_arduino_pin_info_list[6]), // D6
+	[26] = &(lt_arduino_pin_info_list[7]), // D7
+	[27] = &(lt_arduino_pin_info_list[8]), // D8
+	[30] = &(lt_arduino_pin_info_list[9]), // D9
+	[33] = &(lt_arduino_pin_info_list[10]), // D10
+	[34] = &(lt_arduino_pin_info_list[11]), // D11
+	[35] = &(lt_arduino_pin_info_list[12]), // D12
+};
+
 void lt_init_variant() {
 	// no board-specific init on BW16 (no PSRAM, no external peripherals)
 }
