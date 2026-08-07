@@ -147,7 +147,7 @@ queue.AddLibrary(
         # WiFi API + wlan driver OS glue (wext_wlan_indicate, promisc,
         # rltk_wlan_set_netif_info, lwip_intf) and the DHCP server
         "+<common/api/wifi/wifi_conf.c>",
-        "+<common/api/wifi/wifi_ind.c>",
+        # wifi_ind.c is NOT built: WiFiEvents.cpp provides wifi_indication
         "+<common/api/wifi/wifi_promisc.c>",
         "+<common/api/wifi/wifi_util.c>",
         "+<common/api/wifi/rtw_wpa_supplicant/wpa_supplicant/wifi_eap_config.c>",

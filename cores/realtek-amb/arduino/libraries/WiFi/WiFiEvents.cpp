@@ -72,7 +72,10 @@ void wifi_indication(rtw_event_indicate_t event, char *buf, int buf_len, int fla
 		return;
 	if (wifiEventQueueHandle && wifiEventTaskHandle) {
 		rtw_event_t *ev = (rtw_event_t *)malloc(sizeof(rtw_event_t));
-		if (buf_len > 0) {
+		// Some drivers pass a value rather than a pointer in buf (AmebaD sends
+		// buf=0x1, buf_len=2 while switching modes), so copy only from an
+		// address that can actually be one.
+		if (buf_len > 0 && (uintptr_t)buf >= 0x1000) {
 			// copy data to allow freeing from calling scopes
 			char *bufCopy = (char *)malloc(buf_len);
 			memcpy(bufCopy, buf, buf_len);
