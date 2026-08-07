@@ -37,6 +37,14 @@ uint8_t lt_ota_dual_get_stored_by_flag() {
 	return (sig[0] == AMBD_OTA_SIGN_0 && sig[1] == AMBD_OTA_SIGN_1) ? 2 : 1;
 }
 
+// The vendor tree defines this in rtl8721d_ota.c, which stays out of the
+// build (SD-card/HTTP OTA app code); app_start references it.
+void ota_platform_reset(void) {
+	extern void sys_reset(void);
+	sys_reset();
+	while (1) {}
+}
+
 // FLASH_WriteStream/FLASH_EreaseDwordsXIP/FLASH_TxData12BXIP come from
 // rtl8721d_flash.h via ameba_soc.h (sdk_private.h).
 

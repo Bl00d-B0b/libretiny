@@ -40,7 +40,17 @@ queue.AppendPublic(
         "-mfloat-abi=hard",
         "-mfpu=fpv5-sp-d16",
         "--specs=nano.specs",
+        # Boot ROM + Img2EntryFun0 do the startup; app_start.c owns _init.
+        "-nostartfiles",
         "-Wl,--gc-sections",
+        # Pull the image2 entry table object (nothing references it; the boot
+        # ROM finds it by section address) — anchors app_start -> main.
+        "-Wl,--undefined=Img2EntryFun0",
+        # Newlib (scanned after the lib group) needs these from our syscalls.c;
+        # -u loads them while the group is still open.
+        "-Wl,-u,_exit",
+        "-Wl,-u,_kill",
+        "-Wl,-u,_getpid",
     ],
     CPPPATH=[
         join(SOC_DIR, "cmsis"),
@@ -88,11 +98,54 @@ queue.AddLibrary(
     base_dir=SOC_DIR,
     srcs=[
         "+<fwlib/ram_hp/*.c>",
+        "+<fwlib/crypto/*.c>",
+        "+<app/monitor/ram/*.c>",
+        "+<fwlib/ram_common/*.c>",
+        # KM0-only peripheral (its APBPeriph_QDEC ids exist only on the LP core)
+        "-<fwlib/ram_common/rtl8721d_qdec.c>",
+        "+<fwlib/usrcfg/rtl8721d_wificfg.c>",
+        "+<fwlib/usrcfg/rtl8721d_bootcfg.c>",
+        "+<fwlib/usrcfg/rtl8721d_ipccfg.c>",
+        "+<fwlib/usrcfg/rtl8721dhp_intfcfg.c>",
+        "+<fwlib/usrcfg/rtl8721dhp_boot_trustzonecfg.c>",
         "+<misc/*.c>",
         # HTTP/SD-card OTA app code (drags in fatfs); LibreTiny OTA is uf2ota
         "-<misc/rtl8721d_ota.c>",
     ],
     includes=[],
+)
+
+# OS glue: osdep service, heap config (defines psram_dev_config), cmsis_os.
+queue.AddLibrary(
+    name="ambd_osdep",
+    base_dir=COMPONENT_DIR,
+    srcs=[
+        "+<os/os_dep/osdep_service.c>",
+        "+<os/os_dep/device_lock.c>",
+        "+<os/os_dep/psram_reserve.c>",
+        "+<os/freertos/cmsis_os.c>",
+        "+<os/freertos/freertos_service.c>",
+        "+<os/freertos/freertos_backtrace_ext.c>",
+        "+<common/mbed/targets/hal/rtl8721d/*.c>",
+    ],
+    includes=[],
+    options=dict(CFLAGS=["-w"]),
+)
+
+# Compiled separately: needs the full SoC surface (psram_dev_config) that its
+# own include chain does not pull — the vendor build force-includes it too.
+queue.AddLibrary(
+    name="ambd_osheap",
+    base_dir=COMPONENT_DIR,
+    srcs=["+<os/freertos/freertos_heap5_config.c>"],
+    includes=[],
+    options=dict(CFLAGS=["-w", "-include", "ameba_soc.h"]),
+)
+
+# Prebuilt SDK archives (power management now; wlan/BT join with their features)
+env.Append(
+    LIBPATH=[join("$SDK_DIR", "project", "OpenBeken", "GCC-RELEASE", "project_hp", "asdk", "lib", "application")],
+    LIBS=["_pmc_hp"],
 )
 
 # FreeRTOS from the SDK (vendor port + heap_5, per the KM4 project makefile).
