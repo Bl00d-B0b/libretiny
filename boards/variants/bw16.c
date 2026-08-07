@@ -36,3 +36,7 @@ PinInfo lt_arduino_pin_info_list[PINS_COUNT] = {
 	{35u, PIN_GPIO | PIN_IRQ | PIN_SPI,  PIN_NONE, 0},
 };
 // clang-format on
+
+void lt_init_variant() {
+	// no board-specific init on BW16 (no PSRAM, no external peripherals)
+}

@@ -12,6 +12,12 @@ board: PlatformBoardConfig = env.BoardConfig()
 queue = env.AddLibraryQueue("realtek-ambd")
 env.ConfigureFamily()
 
+# Bench diagnostic: platformio.ini "custom_fault_dump = 1" installs the
+# fault handler from cores/realtek-ambd/base/fixups/fault_dump.c. Project
+# build_flags do not reach the core sources, so it has to be an env define.
+if env.GetProjectOption("custom_fault_dump", "0") == "1":
+    env.Append(CPPDEFINES=[("LT_AMBD_FAULT_DUMP", 1)])
+
 COMPONENT_DIR = join("$SDK_DIR", "component")
 SOC_DIR = join(COMPONENT_DIR, "soc", "realtek", "amebad")
 FREERTOS_DIR = join(COMPONENT_DIR, "os", "freertos", "freertos_v10.2.0")
@@ -51,6 +57,10 @@ queue.AppendPublic(
         "-Wl,-u,_exit",
         "-Wl,-u,_kill",
         "-Wl,-u,_getpid",
+        # lt_init_family()/lt_init_variant() are declared weak, so a plain call
+        # does not pull their archive members in — force them.
+        "-Wl,-u,lt_init_family",
+        "-Wl,-u,lt_init_variant",
         # The SDK's app_start() calls main() directly; wrap it to run
         # lt_main()'s startup first (fixups/lt_main_hook.c).
         "-Wl,-wrap,main",
