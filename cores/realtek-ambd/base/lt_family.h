@@ -5,10 +5,11 @@
 #include <lt_pins.h>
 
 // AmebaD (RTL8720D) KM4 application core.
-// The log console lives on LOGUART (KM0-owned at boot, handed to KM4);
-// exposed here as port 0 until the UART driver lands.
+// The log console lives on LOGUART (KM0-owned at boot, handed to KM4), wired
+// to PA7/PA8 on BW16 — the same pins the boot ROM uses for UART download.
+// Port 2 in the printf port's mapping; verified on hardware 2026-08-07.
 #ifndef LT_UART_DEFAULT_PORT
-#define LT_UART_DEFAULT_PORT 0
+#define LT_UART_DEFAULT_PORT 2
 #endif
 
 // Auto-download-reboot detection: the AmebaD boot ROM handshake byte
