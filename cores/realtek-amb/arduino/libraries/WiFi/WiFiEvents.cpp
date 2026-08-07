@@ -72,13 +72,15 @@ void wifi_indication(rtw_event_indicate_t event, char *buf, int buf_len, int fla
 		return;
 	if (wifiEventQueueHandle && wifiEventTaskHandle) {
 		rtw_event_t *ev = (rtw_event_t *)malloc(sizeof(rtw_event_t));
-		// Some drivers pass a value rather than a pointer in buf (AmebaD sends
-		// buf=0x1, buf_len=2 while switching modes), so copy only from an
-		// address that can actually be one.
-		if (buf_len > 0 && (uintptr_t)buf >= 0x1000) {
+		// flags == -2 marks an Arduino event: buf points to an EventInfo and
+		// buf_len carries the event id, so it is not a length. Some drivers
+		// also pass a value rather than a pointer in buf (AmebaD sends buf=0x1,
+		// buf_len=2 while switching modes), so copy only from a real address.
+		size_t copyLen = flags == -2 ? sizeof(EventInfo) : (size_t)buf_len;
+		if ((uintptr_t)buf >= 0x1000 && copyLen > 0) {
 			// copy data to allow freeing from calling scopes
-			char *bufCopy = (char *)malloc(buf_len);
-			memcpy(bufCopy, buf, buf_len);
+			char *bufCopy = (char *)malloc(copyLen);
+			memcpy(bufCopy, buf, copyLen);
 			ev->buf = bufCopy;
 		} else {
 			ev->buf = NULL;
@@ -97,7 +99,8 @@ static void wifiEventTask(void *arg) {
 	for (;;) {
 		if (xQueueReceive(wifiEventQueueHandle, &data, portMAX_DELAY) == pdTRUE) {
 			handleRtwEvent(data->event, data->buf, data->buf_len, data->flags);
-			if (data->buf) {
+			// Arduino events (flags == -2) are freed by handleRtwEvent() itself
+			if (data->buf && data->flags != -2) {
 				// free memory allocated in wifi_indication
 				free(data->buf);
 			}
@@ -126,8 +129,10 @@ void handleRtwEvent(uint16_t event, char *data, int len, int flags) {
 		// already an Arduino event, just pass it
 		EventId eventId		 = (EventId)len;
 		EventInfo *eventInfo = (EventInfo *)data;
-		pWiFi->postEvent(eventId, *eventInfo);
-		free(eventInfo);
+		EventInfo empty		 = {};
+		pWiFi->postEvent(eventId, eventInfo ? *eventInfo : empty);
+		if (eventInfo)
+			free(eventInfo);
 		return;
 	}
 
