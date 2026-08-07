@@ -17,6 +17,11 @@
 // Serial ports
 // ------------
 // LOG_UART on PA7 (RX) / PA8 (TX) — the console + download port.
+// LOG UART (PA7/PA8) is Serial0; the user UART on PB1/PB2 is Serial2.
+// UART1 is wired to the BT controller and is not exposed.
+#define HAS_SERIAL0 1
+#define HAS_SERIAL2 1
+
 #define PIN_SERIAL0_RX 7u  // PIN_PA7
 #define PIN_SERIAL0_TX 8u  // PIN_PA8
 #define PINS_SERIAL0_RX {7u}

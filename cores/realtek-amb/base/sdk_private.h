@@ -96,4 +96,5 @@ extern flash_t lt_flash_obj;
 
 #ifdef __cplusplus
 } // extern "C"
+
 #endif
