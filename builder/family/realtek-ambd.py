@@ -21,7 +21,7 @@ if env.GetProjectOption("custom_fault_dump", "0") == "1":
 COMPONENT_DIR = join("$SDK_DIR", "component")
 SOC_DIR = join(COMPONENT_DIR, "soc", "realtek", "amebad")
 FREERTOS_DIR = join(COMPONENT_DIR, "os", "freertos", "freertos_v10.2.0")
-LWIP_DIR = join(COMPONENT_DIR, "common", "network", "lwip", "lwip_v2.0.2")
+LWIP_DIR = join(COMPONENT_DIR, "common", "network", "lwip", "lwip_v2.2.0")
 FREERTOS_PORT_DIR = join(FREERTOS_DIR, "Source", "portable", "GCC", "RTL8721D_HP", "non_secure")
 
 # KM4 (Cortex-M33) application build. KM0 image and both boot images ship
@@ -99,7 +99,8 @@ queue.AppendPublic(
         join(COMPONENT_DIR, "common", "mbed", "targets", "hal", "rtl8721d"),
         join(COMPONENT_DIR, "common", "api", "platform"),
         join(COMPONENT_DIR, "common", "network"),
-        # SDK-bundled lwIP (v2.0.2, the OpenBeken/vendor default for AmebaD)
+        # SDK-bundled lwIP 2.2.0: ESPHome's socket layer needs lwip_readv,
+        # which 2.0.2 does not provide.
         join(LWIP_DIR, "src", "include"),
         join(LWIP_DIR, "port", "realtek"),
         join(LWIP_DIR, "port", "realtek", "freertos"),
@@ -174,7 +175,7 @@ queue.AddLibrary(
     options=dict(CFLAGS=["-w", "-include", "ameba_soc.h"]),
 )
 
-# SDK-bundled lwIP 2.0.2 with the Realtek port (netif_rx and friends).
+# SDK-bundled lwIP 2.2.0 with the Realtek port (netif_rx and friends).
 queue.AddLibrary(
     name="ambd_lwip",
     base_dir=LWIP_DIR,
@@ -221,3 +222,66 @@ queue.AddLibrary(
 env.GenerateLinkerScript(board, board.get("build.ldscript"))
 
 queue.BuildLibraries()
+
+# Image packaging: the KM4 ELF becomes the km0_km4_image2 the bootloader reads
+# from an OTA slot — [KM0 XIP][KM0 RAM][KM4 XIP][KM4 RAM][terminator], each
+# section carrying a 32-byte header. The KM0 half is a prebuilt blob (the
+# vendor ships one too); only the KM4 half is compiled here.
+IMG2_SIGN = b"81958711"
+KM4_XIP_ADDRESS = 0x0E000020
+KM4_RAM_ADDRESS = 0x10005000
+PSRAM_TERM_ADDRESS = 0x02000020
+KM4_XIP_SECTIONS = [".xip_image2.text", ".ARM.exidx"]
+KM4_RAM_SECTIONS = [".ram_image2.entry", ".ram_image2.text", ".ram_image2.data"]
+
+
+def section_header(length, address):
+    import struct
+
+    return IMG2_SIGN + struct.pack("<II", length, address) + b"\xff" * 16
+
+
+def build_ota_image(target, source, env):
+    from os.path import join as pjoin
+    from subprocess import run
+
+    elf = str(source[0])
+    build_dir = env.subst("$BUILD_DIR")
+    objcopy = env.subst("$OBJCOPY")
+
+    def extract(sections, name):
+        out = pjoin(build_dir, name)
+        cmd = [objcopy, "-O", "binary"]
+        for s in sections:
+            cmd += ["-j", s]
+        run(cmd + [elf, out], check=True)
+        with open(out, "rb") as f:
+            return f.read()
+
+    km0_path = env.subst(pjoin("$FAMILY_DIR", "misc", "km0_image2_all.bin"))
+    with open(km0_path, "rb") as f:
+        km0 = f.read()
+
+    km4_xip = extract(KM4_XIP_SECTIONS, "km4_xip.bin")
+    km4_ram = extract(KM4_RAM_SECTIONS, "km4_ram.bin")
+
+    image = km0
+    # XIP payloads are executed in place, so keep them page-congruent with the
+    # slot offset (both OTA offsets are 4K-aligned).
+    image += b"\xff" * ((-len(image)) % 0x1000)
+    image += section_header(len(km4_xip), KM4_XIP_ADDRESS) + km4_xip
+    image += section_header(len(km4_ram), KM4_RAM_ADDRESS) + km4_ram
+    image += section_header(0, PSRAM_TERM_ADDRESS)
+
+    with open(str(target[0]), "wb") as f:
+        f.write(image)
+
+
+image_ota = "${BUILD_DIR}/image_ota.${FLASH_OTA1_OFFSET}.bin"
+env.Command(image_ota, "${BUILD_DIR}/${PROGNAME}.elf", env.VerboseAction(build_ota_image, "Packing $TARGET"))
+env.Depends("${BUILD_DIR}/firmware.uf2", image_ota)
+env.Replace(
+    UF2OTA=[
+        f"{image_ota},{image_ota}=device:ota1,ota2;flasher:ota1,ota2",
+    ],
+)
