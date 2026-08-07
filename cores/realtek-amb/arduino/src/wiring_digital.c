@@ -47,7 +47,13 @@ void pinMode(pin_size_t pinNumber, PinMode pinMode) {
 			break;
 		case OUTPUT_OPENDRAIN:
 			dir	 = PIN_OUTPUT;
+#if LT_RTL8720D
+			// AmebaD's mbed PinMode enum has no OpenDrain member; the GPIO
+			// block drives open-drain via PullNone + OUT with the bit low.
+			mode = PullNone;
+#else
 			mode = OpenDrain;
+#endif
 			break;
 		default:
 			return;
