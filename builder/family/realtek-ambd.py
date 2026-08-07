@@ -51,6 +51,9 @@ queue.AppendPublic(
         "-Wl,-u,_exit",
         "-Wl,-u,_kill",
         "-Wl,-u,_getpid",
+        # The SDK's app_start() calls main() directly; wrap it to run
+        # lt_main()'s startup first (fixups/lt_main_hook.c).
+        "-Wl,-wrap,main",
     ],
     CPPPATH=[
         join(SOC_DIR, "cmsis"),
