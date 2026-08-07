@@ -5,12 +5,6 @@
 		"prefix": "arm-none-eabi-",
 		"ldscript": "rlx8721d_img2_all.ld"
 	},
-	"flash": {
-		"boot": "0x000000+0x4000",
-		"ota1": "0x004000+0xFA000",
-		"ota2": "0x0FE000+0xFA000",
-		"kvs": "0x1F8000+0x8000"
-	},
 	"upload": {
 		"maximum_ram_size": 524288,
 		"protocol": "uart",

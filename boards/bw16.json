@@ -1,7 +1,7 @@
 {
 	"_base": [
 		"realtek-ambd",
-		"realtek-ambd-2mb"
+		"realtek-ambd-4mb"
 	],
 	"build": {
 		"mcu": "rtl8720dn",
