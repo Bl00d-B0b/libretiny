@@ -6,6 +6,10 @@
 
 #define WIFI_EVENT_MAX_ROW 3
 
+// Lowest address treated as a real pointer in wifi_indication(). Drivers on
+// some families pass a small integer in buf instead of a pointer.
+#define WIFI_EVENT_BUF_MIN_ADDR 0x1000
+
 static xQueueHandle wifiEventQueueHandle = NULL;
 static xTaskHandle wifiEventTaskHandle	 = NULL;
 
@@ -72,14 +76,32 @@ void wifi_indication(rtw_event_indicate_t event, char *buf, int buf_len, int fla
 		return;
 	if (wifiEventQueueHandle && wifiEventTaskHandle) {
 		rtw_event_t *ev = (rtw_event_t *)malloc(sizeof(rtw_event_t));
-		if (buf_len > 0) {
+		if (!ev)
+			return;
+		// flags == -2 marks an Arduino event: buf points to an EventInfo and
+		// buf_len carries the event id, so it is not a length. Some drivers
+		// also pass a value rather than a pointer in buf (AmebaD sends buf=0x1,
+		// buf_len=2 while switching modes), so copy only from a real address.
+		// Check buf_len signed, before the cast: a negative length would become
+		// SIZE_MAX and pass an unsigned test.
+		char *bufCopy = NULL;
+		if ((uintptr_t)buf >= WIFI_EVENT_BUF_MIN_ADDR && (flags == -2 || buf_len > 0)) {
+			size_t copyLen = flags == -2 ? sizeof(EventInfo) : (size_t)buf_len;
 			// copy data to allow freeing from calling scopes
-			char *bufCopy = (char *)malloc(buf_len);
-			memcpy(bufCopy, buf, buf_len);
-			ev->buf = bufCopy;
-		} else {
-			ev->buf = NULL;
+			bufCopy = (char *)malloc(copyLen);
+			if (!bufCopy) {
+				// drop the event instead of queueing a NULL payload: !bufCopy
+				// below then means exactly "no payload was supplied"
+				free(ev);
+				return;
+			}
+			memcpy(bufCopy, buf, copyLen);
 		}
+		ev->buf = bufCopy;
+		if (!bufCopy && flags != -2)
+			// no payload survived, so the length must not be forwarded either;
+			// on flags == -2 buf_len is the event id, not a length — keep it
+			buf_len = 0;
 		ev->event	= event;
 		ev->buf_len = buf_len;
 		ev->flags	= flags;
@@ -94,8 +116,9 @@ static void wifiEventTask(void *arg) {
 	for (;;) {
 		if (xQueueReceive(wifiEventQueueHandle, &data, portMAX_DELAY) == pdTRUE) {
 			handleRtwEvent(data->event, data->buf, data->buf_len, data->flags);
+			// the queue owns the copy made in wifi_indication, for every flags
+			// value; handleRtwEvent() never frees what it is passed
 			if (data->buf) {
-				// free memory allocated in wifi_indication
 				free(data->buf);
 			}
 			free(data);
@@ -123,8 +146,10 @@ void handleRtwEvent(uint16_t event, char *data, int len, int flags) {
 		// already an Arduino event, just pass it
 		EventId eventId		 = (EventId)len;
 		EventInfo *eventInfo = (EventInfo *)data;
-		pWiFi->postEvent(eventId, *eventInfo);
-		free(eventInfo);
+		EventInfo empty		 = {};
+		// the caller owns data: the queue frees its copy in wifiEventTask(),
+		// and direct callers free their own buffer after wifi_indication()
+		pWiFi->postEvent(eventId, eventInfo ? *eventInfo : empty);
 		return;
 	}
 
@@ -156,6 +181,15 @@ void handleRtwEvent(uint16_t event, char *data, int len, int flags) {
 			break;
 
 		case WIFI_EVENT_FOURWAY_HANDSHAKE_DONE:
+#if LT_RTL8720D
+			// LPS is per-connection driver state: a setSleep(false) issued
+			// before association does not survive it, and the driver re-enters
+			// power save on its own (observed on AmebaD as ~50% ICMP loss and
+			// dead TCP a few minutes after connecting). Re-assert the
+			// configured mode on every association.
+			if (!pWiFi->getSleep())
+				wifi_disable_powersave();
+#endif
 			eventId								  = ARDUINO_EVENT_WIFI_STA_CONNECTED;
 			ssid								  = pWiFi->SSID();
 			eventInfo.wifi_sta_connected.ssid_len = ssid.length();
@@ -183,6 +217,8 @@ void handleRtwEvent(uint16_t event, char *data, int len, int flags) {
 
 		case WIFI_EVENT_STA_DISASSOC:
 			// data(6) is MAC
+			if (!data || len < 6)
+				return;
 			eventId = ARDUINO_EVENT_WIFI_AP_STADISCONNECTED;
 			memcpy(eventInfo.wifi_ap_stadisconnected.mac, (const char *)data, 6);
 			break;

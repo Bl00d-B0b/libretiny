@@ -70,7 +70,7 @@ bool WiFiClass::config(IPAddress localIP, IPAddress gateway, IPAddress subnet, I
 // Enable or disable partial scan for a specific channel
 static void set_pscan_channel(uint8_t channel, bool enable) {
 	uint8_t channel_list[1] = {channel};
-	uint8_t pscan_config[1] = {enable ? (PSCAN_ENABLE | PSCAN_FAST_SURVEY) : 0};
+	uint8_t pscan_config[1] = {(uint8_t)(enable ? (PSCAN_ENABLE | PSCAN_FAST_SURVEY) : 0)};
 	wifi_set_pscan_chan(channel_list, pscan_config, 1);
 }
 
@@ -108,6 +108,23 @@ bool WiFiClass::reconnect(const uint8_t *bssid) {
 		if (info.channel > 0) {
 			set_pscan_channel(info.channel, true);
 		}
+#if LT_RTL8720D
+		// AmebaD: do NOT use wifi_connect_bssid(). On this SDK it associates
+		// at L2 but the data path stays dead - the netif never passes traffic
+		// (bench: every saved-fast-connect boot came up unreachable; every
+		// plain connect worked). The channel hint via partial scan above is
+		// what makes the connect fast; plain wifi_connect() gives the same
+		// speed with a working data path.
+		ret = wifi_connect(
+			info.ssid,
+			(rtw_security_t)info.auth,
+			info.password,
+			strlen(info.ssid),
+			strlen(info.password),
+			-1,
+			NULL
+		);
+#else
 		ret = wifi_connect_bssid(
 			(unsigned char *)bssid,
 			info.ssid,
@@ -119,6 +136,7 @@ bool WiFiClass::reconnect(const uint8_t *bssid) {
 			-1,
 			NULL
 		);
+#endif
 		// Reset partial scan config
 		if (info.channel > 0) {
 			set_pscan_channel(info.channel, false);
@@ -143,6 +161,15 @@ bool WiFiClass::reconnect(const uint8_t *bssid) {
 			wifi_disconnect();
 			goto error;
 		}
+	} else {
+		// Static configuration: LwIP_DHCP() brings the interface up and makes
+		// it the default as a side effect; with DHCP skipped nothing does.
+		// Without the default netif every routed frame is dropped, so the
+		// device ends up associated but unreachable (bench 2026-08-10, only
+		// after a rejected first association attempt).
+		netif_set_up(NETIF_RTW_STA);
+		netif_set_link_up(NETIF_RTW_STA);
+		netif_set_default(NETIF_RTW_STA);
 	}
 
 	LT_HEAP_I();
