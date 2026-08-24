@@ -4,6 +4,15 @@
 #include "drv_model_pub.h"
 #include "uart_pub.h"
 
+// BK_PARTITION_BLE_BONDING_FLASH exists since BDK 3.0.76. The placement
+// invariants (sector alignment, minimum size, no overlap) are enforced at
+// build time in builder/utils/flash.py.
+#if CFG_BDK_VERSION >= 30076
+#ifndef FLASH_BLE_BONDING_OFFSET
+#error "Board flash layout must declare a 'ble_bonding' partition (see boards/_base/beken-*.json)"
+#endif
+#endif
+
 static const bk_logic_partition_t bk7231_partitions[BK_PARTITION_MAX] = {
 	[BK_PARTITION_BOOTLOADER] =
 		/**/
@@ -50,11 +59,39 @@ static const bk_logic_partition_t bk7231_partitions[BK_PARTITION_MAX] = {
 		.partition_length	   = 0,
 		.partition_options	   = PAR_OPT_READ_EN | PAR_OPT_WRITE_DIS,
 	 },
+#if CFG_BDK_VERSION >= 30076
+	// The BDK bond store erases the sector at this partition's start address
+	// on every BLE bring-up. Without this entry the zero-filled slot points
+	// at flash sector 0 and the bootloader is erased (esphome/esphome#18646).
+	// Claimed sectors per layout: 0x1E1000 (beken-72xx) and 0x1D1000
+	// (7231n-tuya) are the former net/tlv partitions removed in 9598759;
+	// 0x1E2000 (7238-tuya) is free between diff2ya and calibration; 0x3FF000
+	// (7252) is the tail sector of its 4 MiB flash. Restoring net/tlv at
+	// their stock addresses would collide with this partition.
+	[BK_PARTITION_BLE_BONDING_FLASH] =
+		/**/
+	{
+		.partition_owner	   = BK_FLASH_EMBEDDED,
+		.partition_description = "BLE bonding",
+		.partition_start_addr  = FLASH_BLE_BONDING_OFFSET,
+		.partition_length	   = FLASH_BLE_BONDING_LENGTH,
+		.partition_options	   = PAR_OPT_READ_EN | PAR_OPT_WRITE_DIS,
+	 },
+#endif
 };
 
 bk_logic_partition_t *__wrap_bk_flash_get_info(bk_partition_t partition) {
-	if ((partition >= BK_PARTITION_BOOTLOADER) && (partition < BK_PARTITION_MAX))
-		return (bk_logic_partition_t *)&bk7231_partitions[partition];
+	bk_logic_partition_t *info;
+	if ((partition >= BK_PARTITION_BOOTLOADER) && (partition < BK_PARTITION_MAX)) {
+		info = (bk_logic_partition_t *)&bk7231_partitions[partition];
+		// An unmapped enum value is a zero-filled slot pointing at flash
+		// sector 0; report it as not-found instead. NET_PARAM stays visible
+		// (zero-length entries fail the bounds checks below instead) so BDK
+		// callers of get_info never see NULL for a populated slot.
+		if (info->partition_description == NULL)
+			return NULL;
+		return info;
+	}
 	return NULL;
 }
 
@@ -67,9 +104,19 @@ OSStatus __wrap_bk_flash_erase(bk_partition_t partition, uint32_t off_set, uint3
 	bk_logic_partition_t *partition_info;
 	GLOBAL_INT_DECLARATION();
 	partition_info = bk_flash_get_info(partition);
-	start_sector   = off_set >> 12;
-	end_sector	   = (off_set + size - 1) >> 12;
-	flash_hdl	   = ddev_open(FLASH_DEV_NAME, &status, 0);
+	// Mirror the write/read paths: fail on an unmapped partition or an
+	// over-long range instead of erasing neighbouring sectors.
+	if (NULL == partition_info) {
+		os_printf("%s partiion not found\r\n", __FUNCTION__);
+		return kNotFoundErr;
+	}
+	if (size == 0 || off_set > partition_info->partition_length || size > partition_info->partition_length - off_set) {
+		os_printf("%s erase range out of bounds\r\n", __FUNCTION__);
+		return kParamErr;
+	}
+	start_sector = off_set >> 12;
+	end_sector	 = (off_set + size - 1) >> 12;
+	flash_hdl	 = ddev_open(FLASH_DEV_NAME, &status, 0);
 	ASSERT(DD_HANDLE_UNVALID != flash_hdl);
 	for (i = start_sector; i <= end_sector; i++) {
 		param = partition_info->partition_start_addr + (i << 12);
@@ -99,6 +146,10 @@ OSStatus __wrap_bk_flash_write(
 	if (NULL == partition_info) {
 		os_printf("%s partiion not found\r\n", __FUNCTION__);
 		return kNotFoundErr;
+	}
+	if (off_set > partition_info->partition_length || inBufferLength > partition_info->partition_length - off_set) {
+		os_printf("%s write range out of bounds\r\n", __FUNCTION__);
+		return kParamErr;
 	}
 	start_addr = partition_info->partition_start_addr + off_set;
 	flash_hdl  = ddev_open(FLASH_DEV_NAME, &status, 0);
@@ -131,6 +182,10 @@ OSStatus __wrap_bk_flash_read(
 	if (NULL == partition_info) {
 		os_printf("%s partiion not found\r\n", __FUNCTION__);
 		return kNotFoundErr;
+	}
+	if (off_set > partition_info->partition_length || inBufferLength > partition_info->partition_length - off_set) {
+		os_printf("%s read range out of bounds\r\n", __FUNCTION__);
+		return kParamErr;
 	}
 	start_addr = partition_info->partition_start_addr + off_set;
 	flash_hdl  = ddev_open(FLASH_DEV_NAME, &status, 0);
