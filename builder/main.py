@@ -21,7 +21,7 @@ python_deps = {
     # Released ltchiptool has no realtek-ambd family yet (ltchiptool#98);
     # install the fork build directly. The full requirement string as the key
     # bypasses the installer's semver check, which cannot parse a git ref.
-    "ltchiptool @ git+https://github.com/Bl00d-B0b/ltchiptool.git@soc-ambd": "",
+    "ltchiptool @ git+https://github.com/Bl00d-B0b/ltchiptool.git@soc-ambd-prod": "",
 }
 env.SConscript("python-venv.py", exports="env")
 env.ConfigurePythonVenv()
