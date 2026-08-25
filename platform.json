@@ -136,7 +136,7 @@
     "framework-realtek-ambd": {
       "type": "framework",
       "optional": true,
-      "version": "https://github.com/Bl00d-B0b/framework-realtek-ambd#master",
+      "version": "https://github.com/Bl00d-B0b/framework-realtek-ambd#bed81c4a1abe30ea4fb22c7163a8812b9c475b3e",
       "version_prefix": true,
       "toolchains": {
         "any": "gccarmnoneeabi@~1.100301.0"
