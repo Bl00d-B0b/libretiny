@@ -21,7 +21,10 @@ board: PlatformBoardConfig = env.BoardConfig()
 env.SConscript("utils/command.py", exports="env")
 
 python_deps = {
-    "ltchiptool": ">=4.14.3,<5.0",
+    # Released ltchiptool has no realtek-ambd family yet (ltchiptool#98);
+    # install the fork build directly. The full requirement string as the key
+    # bypasses the installer's semver check, which cannot parse a git ref.
+    "ltchiptool @ git+https://github.com/Bl00d-B0b/ltchiptool.git@soc-ambd": "",
 }
 env.SConscript("python-venv.py", exports="env")
 env.ConfigurePythonVenv()
