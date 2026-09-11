@@ -135,6 +135,8 @@ queue.AppendPublic(
         "-Wl,-wrap,bk_flash_erase",
         "-Wl,-wrap,bk_flash_write",
         "-Wl,-wrap,bk_flash_read",
+        # bounded wait for supplicant commands (base/wraps/wpa_ctrl.c)
+        "-Wl,-wrap,wpa_ctrl_request",
         # stdio wrappers (base/port/printf.c)
         "-Wl,-wrap,bk_printf",
     ],
