@@ -1,8 +1,9 @@
 /* Copyright (c) Bl00d-B0b 2026-09-11. */
 
+#include <libretiny.h>
+
 #include "include.h"
 #include "rtos_pub.h"
-#include "uart_pub.h"
 
 // The BDK's wpa_ctrl_request() (libsupplicant) queues a command to the
 // wpa_supplicant task and waits for completion with BEKEN_WAIT_FOREVER. Every
@@ -15,6 +16,9 @@
 // timeout the caller gets an error and keeps running; the helper stays parked
 // on the stalled request and later calls fail fast, which lets the application
 // fall back to its own recovery (ESPHome reboots after wifi.reboot_timeout).
+//
+// Messages go through the LT logger: bk_printf is disabled by WiFiClass::reconnect()
+// around the very call that stalls.
 
 typedef int wpa_ctrl_cmd_t_;
 extern int __real_wpa_ctrl_request(wpa_ctrl_cmd_t_ cmd, void *data);
@@ -68,14 +72,14 @@ int __wrap_wpa_ctrl_request(wpa_ctrl_cmd_t_ cmd, void *data) {
 		return __real_wpa_ctrl_request(cmd, data);
 
 	if (wpa_ctrl_worker_init() != 0) {
-		os_printf("%s: worker init failed, calling directly\r\n", __FUNCTION__);
+		LT_E("wpa_ctrl worker init failed, calling directly");
 		return __real_wpa_ctrl_request(cmd, data);
 	}
 
 	rtos_lock_mutex(&lock);
 	if (stalled) {
 		// A previous request never completed; the worker is still inside it.
-		os_printf("%s: cmd %d refused, supplicant stalled\r\n", __FUNCTION__, cmd);
+		LT_E("wpa_ctrl cmd %d refused, supplicant stalled", cmd);
 		rtos_unlock_mutex(&lock);
 		return -1;
 	}
@@ -86,7 +90,7 @@ int __wrap_wpa_ctrl_request(wpa_ctrl_cmd_t_ cmd, void *data) {
 	if (rtos_get_semaphore(&done_sem, WPA_CTRL_TIMEOUT_MS) == kNoErr) {
 		result = q_result;
 	} else {
-		os_printf("%s: cmd %d timed out after %d ms, supplicant stalled\r\n", __FUNCTION__, cmd, WPA_CTRL_TIMEOUT_MS);
+		LT_E("wpa_ctrl cmd %d timed out after %d ms, supplicant stalled", cmd, WPA_CTRL_TIMEOUT_MS);
 		stalled = 1;
 		result	= -1;
 	}
