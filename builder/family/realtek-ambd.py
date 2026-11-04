@@ -306,17 +306,24 @@ def build_ota_image(target, source, env):
 
     with open(str(target[0]), "wb") as f:
         f.write(image)
+    # OTA (device) copy with a blank slot signature: the bootloader picks a slot
+    # by its signature, so it must only become valid once the whole image is
+    # written. lt_ota_dual_switch_flag() writes it after the last block.
+    with open(str(target[1]), "wb") as f:
+        f.write(b"\xff" * len(IMG2_SIGN) + image[len(IMG2_SIGN) :])
 
 
 image_ota = "${BUILD_DIR}/image_ota.${FLASH_OTA1_OFFSET}.bin"
+image_ota_unsigned = "${BUILD_DIR}/image_ota_unsigned.${FLASH_OTA1_OFFSET}.bin"
 env.Command(
-    image_ota,
+    [image_ota, image_ota_unsigned],
     "${BUILD_DIR}/${PROGNAME}.elf",
     env.VerboseAction(build_ota_image, "Packing $TARGET"),
 )
-env.Depends("${BUILD_DIR}/firmware.uf2", image_ota)
+env.Depends("${BUILD_DIR}/firmware.uf2", [image_ota, image_ota_unsigned])
 env.Replace(
     UF2OTA=[
-        f"{image_ota},{image_ota}=device:ota1,ota2;flasher:ota1,ota2",
+        f"{image_ota_unsigned},{image_ota_unsigned}=device:ota1,ota2",
+        f"{image_ota},{image_ota}=flasher:ota1,ota2",
     ],
 )

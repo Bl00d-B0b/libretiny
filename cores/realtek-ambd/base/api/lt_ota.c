@@ -10,6 +10,8 @@
 #define AMBD_OTA_SIGN_0 0x35393138 // "8195"
 #define AMBD_OTA_SIGN_1 0x31313738 // "8711"
 
+static bool lt_ota_has_unsigned_image(uint8_t index);
+
 lt_ota_type_t lt_ota_get_type() {
 	return OTA_TYPE_DUAL;
 }
@@ -74,8 +76,17 @@ bool lt_ota_dual_switch_flag() {
 	uint32_t tgt_off = target == 2 ? FLASH_OTA2_OFFSET : FLASH_OTA1_OFFSET;
 	uint32_t old_off = target == 2 ? FLASH_OTA1_OFFSET : FLASH_OTA2_OFFSET;
 	if (!lt_ota_is_valid(target)) {
-		// The update did not carry the signature: write it.
-		FLASH_EreaseDwordsXIP(tgt_off, 2);
+		// The update did not carry the signature (OTA images ship it blank, so a
+		// partly written slot never boots): write it. Only erase if not blank.
+		uint8_t head[8];
+		if (lt_flash_read(tgt_off, head, 8) != 8)
+			return false;
+		for (uint8_t i = 0; i < 8; i++) {
+			if (head[i] != 0xFF) {
+				FLASH_EreaseDwordsXIP(tgt_off, 2);
+				break;
+			}
+		}
 		FLASH_TxData12BXIP(tgt_off, 8, (u8 *)sig);
 		if (!lt_ota_is_valid(target))
 			return false;
@@ -116,7 +127,23 @@ bool lt_ota_switch(bool revert) {
 	uint8_t stored	= lt_ota_dual_get_stored();
 	if ((current == stored) == revert)
 		return true;
-	if (!lt_ota_is_valid(stored ^ 0b11))
+	if (!lt_ota_is_valid(stored ^ 0b11) && !lt_ota_has_unsigned_image(stored ^ 0b11))
 		return false;
 	return lt_ota_dual_switch_flag();
+}
+
+/**
+ * A slot holding a fully written OTA image whose signature is still blank:
+ * 8 x 0xFF, followed by a plausible first section header (length, address).
+ */
+static bool lt_ota_has_unsigned_image(uint8_t index) {
+	uint32_t offset;
+	if (!lt_ota_dual_get_offset(index, &offset))
+		return false;
+	uint32_t head[4];
+	if (lt_flash_read(offset, (void *)head, sizeof(head)) != sizeof(head))
+		return false;
+	if (head[0] != 0xFFFFFFFF || head[1] != 0xFFFFFFFF)
+		return false;
+	return head[2] != 0 && head[2] != 0xFFFFFFFF && head[3] != 0xFFFFFFFF;
 }
