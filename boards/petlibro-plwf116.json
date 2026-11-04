@@ -1,0 +1,42 @@
+{
+	"_base": [
+		"realtek-ambd"
+	],
+	"build": {
+		"mcu": "rtl8721dm",
+		"variant": "petlibro-plwf116",
+		"flash_size": "8MB"
+	},
+	"flash": {
+		"boot": "0x000000+0x3000",
+		"system": "0x003000+0x1000",
+		"boot_km4": "0x004000+0x2000",
+		"ota1": "0x006000+0xFA000",
+		"rtk_settings": "0x100000+0x6000",
+		"ota2": "0x186000+0x180000",
+		"kvs": "0x306000+0x8000",
+		"userdata": "0x30E000+0xDE000",
+		"vendor_cfg": "0x3EC000+0x15000",
+		"vendor_log": "0x7C0000+0x40000"
+	},
+	"upload": {
+		"flash_size": 8388608,
+		"maximum_size": 1024000
+	},
+	"name": "Petlibro PLWF116 (RTL8721DM)",
+	"symbol": "PLWF116",
+	"url": "https://www.petlibro.com/",
+	"vendor": "Petlibro",
+	"doc": {
+		"extra": [
+			"## Information",
+			"Main board of the Petlibro PLWF116 cordless water fountain (board revision DVT2), RTL8721DM with external 8 MiB XTX flash (JEDEC 0B 40 17).",
+			"The flash layout keeps the vendor bootloaders, which hard-code OTA1 at 0x6000 and OTA2 at 0x186000. The app size is capped at 0xFA000 because OTA1 ends where the SDK settings sectors (UART/AP settings, BT FTL, fast reconnect) begin at 0x100000; OTA2 keeps its full 0x180000 slot.",
+			"vendor_cfg holds the vendor's cloud identity, device settings and calibration data; vendor_log holds the vendor's event log. Neither is touched by LibreTiny.",
+			"The GPIO list is a superset for pin discovery: SPI flash pins PB12-PB17 and the flash power switch PB22 are excluded."
+		]
+	},
+	"pcb": {
+		"symbol": "PLWF116"
+	}
+}
